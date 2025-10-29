@@ -1,0 +1,65 @@
+{
+  "customers": {
+    "C001": {
+      "name": "张三",
+      "company": "科技有限公司",
+      "status": "意向客户",
+      "stage": "需求确认",
+      "last_contact": "2025-10-20",
+      "contact_history": [
+        {
+          "date": "2025-10-20",
+          "type": "会议",
+          "summary": "讨论了Q4采购需求，客户对产品功能表示认可"
+        },
+        {
+          "date": "2025-10-15",
+          "type": "邮件",
+          "summary": "发送了产品介绍和报价"
+        }
+      ],
+      "intent_signals": ["询问价格", "要求演示", "提到预算"],
+      "priority": "高"
+    },
+    "C002": {
+      "name": "李四",
+      "company": "贸易公司",
+      "status": "潜在客户",
+      "stage": "初次接触",
+      "last_contact": "2025-10-01",
+      "contact_history": [],
+      "intent_signals": [],
+      "priority": "中"
+    }
+  },
+  "leads": [
+    {
+      "id": "L001",
+      "name": "王五",
+      "source": "网站表单",
+      "score": 85,
+      "status": "待跟进",
+      "silent_days": 8,
+      "risk": "高流失风险"
+    },
+    {
+      "id": "L002",
+      "name": "赵六",
+      "source": "展会",
+      "score": 65,
+      "status": "跟进中",
+      "silent_days": 2,
+      "risk": "正常"
+    }
+  ],
+  "opportunities": [
+    {
+      "id": "O001",
+      "customer_id": "C001",
+      "amount": 500000,
+      "stage": "方案确认",
+      "probability": 70,
+      "expected_close_date": "2025-11-30"
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "orders": {
+    "123": {
+      "order_id": "123",
+      "customer_name": "李明",
+      "customer_id": "U456",
+      "status": "运输中",
+      "created_at": "2025-10-25T10:30:00",
+      "expected_delivery": "2025-10-30",
+      "actual_delivery": null,
+      "is_delayed": true,
+      "delay_reason": "仓配系统异常（参考DOC004）",
+      "items": [
+        {
+          "product": "AI智能音箱",
+          "quantity": 1,
+          "price": 299
+        }
+      ],
+      "total_amount": 299,
+      "shipping_address": "上海市浦东新区XX路XX号",
+      "tracking_number": "SF1234567890"
+    },
+    "124": {
+      "order_id": "124",
+      "customer_name": "王芳",
+      "customer_id": "U789",
+      "status": "已签收",
+      "created_at": "2025-10-20T14:20:00",
+      "expected_delivery": "2025-10-25",
+      "actual_delivery": "2025-10-24T16:30:00",
+      "is_delayed": false,
+      "items": [
+        {
+          "product": "智能手表",
+          "quantity": 2,
+          "price": 599
+        }
+      ],
+      "total_amount": 1198
+    }
+  },
+  "tickets": [
+    {
+      "ticket_id": "T001",
+      "order_id": "123",
+      "customer_id": "U456",
+      "type": "物流查询",
+      "status": "进行中",
+      "priority": "高",
+      "created_at": "2025-10-29T09:15:00",
+      "description": "订单延迟，想了解具体情况",
+      "history": [
+        {
+          "time": "2025-10-29T09:15:00",
+          "action": "用户提交工单",
+          "content": "订单#123延迟了吗？"
+        }
+      ]
+    },
+    {
+      "ticket_id": "T002",
+      "order_id": "125",
+      "customer_id": "U999",
+      "type": "退换货",
+      "status": "已完成",
+      "priority": "中",
+      "created_at": "2025-10-20T10:00:00",
+      "resolved_at": "2025-10-22T15:30:00",
+      "description": "商品质量问题，申请退货",
+      "resolution": "已批准退货并退款"
+    }
+  ],
+  "similar_cases": [
+    {
+      "case_id": "CASE001",
+      "scenario": "仓配异常导致延迟",
+      "solution": "主动联系客户说明情况，提供补偿方案（优惠券或运费补贴），预计恢复时间",
+      "satisfaction_score": 4.5,
+      "resolved_in_hours": 2
+    },
+    {
+      "case_id": "CASE002",
+      "scenario": "客户要求加急处理",
+      "solution": "确认客户联系方式和地址，联系物流升级为特快专递，预计缩短1-2天",
+      "satisfaction_score": 4.8,
+      "resolved_in_hours": 1
+    }
+  ]
+}
