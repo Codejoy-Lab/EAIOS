@@ -242,6 +242,28 @@ python -c "import os,sys,json; sys.path.append('backend'); from app.core.mcp_cli
 - 在外部服务新增/更新工具与 schema
 - 重启/热更新后端将自动读取最新工具列表
 
+#### 本地 MCP（process_http 模式，推荐）
+
+当你的 MCP 只能“本地启动”为一个进程（例如通过 `mcpServers` 配置拉起命令），可使用本项目的本地进程兼容模式：
+
+1) 在 `.env` 中配置：
+```env
+MCP_MODE=process_http
+# 启动 MCP 的命令与参数（args 支持 JSON 数组或空格分隔字符串）
+MCP_PROCESS_COMMAND=cmd
+MCP_PROCESS_ARGS=["/c","npx","-y","@smithery/cli@latest","run","@Deploya-labs/mcp-resend","--key","<your_key>","--profile","<your_profile>"]
+
+# 本地 MCP 进程启动后提供的 HTTP JSON-RPC 端点（tools/list, tools/call）
+MCP_LOCAL_URL=http://127.0.0.1:8787/mcp
+
+# 可选：等待 MCP 就绪的超时秒数（默认 30）
+MCP_START_TIMEOUT=30
+```
+
+2) 启动后端时，系统会先拉起本地 MCP 进程，再用 `MCP_LOCAL_URL` 初始化 MCP 客户端。
+
+3) 验证：在后端日志中打印“可用工具: [...]”，或使用上文的“验证外部工具”脚本。
+
 ### 4. WebSocket实时通信
 
 **用途**：场景执行时实时推送节点状态
