@@ -155,12 +155,17 @@ class MemoryManager:
             return []
 
         try:
-            # 搜索记忆
-            results = self.memory.search(
-                query=query,
-                user_id=user_id,
-                limit=limit
-            )
+            # 搜索记忆（添加异常捕获）
+            import asyncio
+            try:
+                results = self.memory.search(
+                    query=query,
+                    user_id=user_id,
+                    limit=limit
+                )
+            except Exception as search_err:
+                print(f"⚠️  搜索记忆时出错: {search_err}, 返回空结果")
+                return []
 
             # 解析结果 - Mem0 可能返回列表或字典
             memories = []
