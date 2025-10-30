@@ -3,12 +3,15 @@
 """
 from app.core.memory import MemoryManager
 from app.core.llm import LLMClient
+from app.core.mcp_client import MCPClient
+from typing import Optional
 
 
 class AppState:
     """应用全局状态"""
-    memory_manager: MemoryManager = None
-    llm_client: LLMClient = None
+    memory_manager: Optional[MemoryManager] = None
+    llm_client: Optional[LLMClient] = None
+    mcp_client: Optional[MCPClient] = None  # 飞书任务MCP客户端
 
 
 # 全局状态实例

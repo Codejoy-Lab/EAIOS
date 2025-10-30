@@ -263,7 +263,7 @@ async def chat_with_s8_stream(request: ChatRequest):
         raise HTTPException(status_code=400, detail="消息不能为空")
 
     async def generate_stream():
-        """生成流式响应"""
+        """生成流式响应（支持MCP工具调用）"""
         full_reply = ""  # 收集完整回复用于后续记忆判断
 
         try:
@@ -288,6 +288,75 @@ async def chat_with_s8_stream(request: ChatRequest):
 相关企业信息：
 {context if context else "暂无相关信息"}
 
+你可以使用飞书任务工具来帮助CEO安排任务。
+
+**工具使用规则：**
+
+1. **单个任务创建**：
+   - 工具名称：anpaitask
+   - 参数说明：
+     * taskname: 任务名称（从建议中提取）
+     * openid: 测试员工ID固定为 ou_891645e9faf220921f1f54c2866a8298
+     * starttime: 任务开始时间（ISO 8601格式，默认今天）
+     * duetime: 任务截止时间（ISO 8601格式，根据紧急程度推断：紧急=3天后，一般=7天后）
+
+2. **批量任务创建流程（多轮调用）**：
+   当CEO说"是，请帮我安排这些任务"或类似确认语句时：
+
+   步骤1：回顾之前生成的报告，找出所有行动建议（通常有3-5个）
+
+   步骤2：逐个创建任务（支持多轮调用）
+   - 调用anpaitask创建第1个任务
+   - 看到第1个任务创建成功后，继续调用anpaitask创建第2个任务
+   - 看到第2个任务创建成功后，继续调用anpaitask创建第3个任务
+   - ...以此类推，直到所有任务创建完成
+   - **提示**：系统支持多轮工具调用，每次工具执行后你都可以继续调用下一个
+
+   步骤3：所有任务创建完成后，用自然语言总结已创建的任务清单
+
+3. **缺失信息处理**：
+   - 负责人（openid）：默认使用测试员工ID ou_891645e9faf220921f1f54c2866a8298
+   - 截止时间（duetime）：如果报告中有明确时间（如"11月5日前"），使用该时间；否则根据紧急程度推断
+   - 开始时间（starttime）：默认今天
+
+4. **重要提醒**：
+   - 一次anpaitask调用只能创建一个任务
+   - 系统支持多轮工具调用，不要害怕多次调用
+   - 每次看到工具执行成功的结果后，就可以继续调用下一个工具
+
+**示例对话流程**：
+
+场景：报告中有3个建议：1) 优化内容策略 2) 加强差异化 3) 进行竞品分析
+
+CEO: "是，请帮我安排这些任务"
+
+第1轮 - 你调用工具：
+```
+anpaitask(taskname="优化内容策略", openid="ou_891645e9faf220921f1f54c2866a8298", starttime="2025-10-30T00:00:00Z", duetime="2025-11-05T23:59:59Z")
+```
+系统返回：任务已成功创建
+
+第2轮 - 你继续调用工具：
+```
+anpaitask(taskname="加强小红书内容差异化", openid="ou_891645e9faf220921f1f54c2866a8298", starttime="2025-10-30T00:00:00Z", duetime="2025-11-10T23:59:59Z")
+```
+系统返回：任务已成功创建
+
+第3轮 - 你继续调用工具：
+```
+anpaitask(taskname="进行市场竞争分析", openid="ou_891645e9faf220921f1f54c2866a8298", starttime="2025-10-30T00:00:00Z", duetime="2025-11-12T23:59:59Z")
+```
+系统返回：任务已成功创建
+
+第4轮 - 你生成最终总结：
+"好的，我已经为您创建了以下任务：
+
+✅ 任务1: 优化内容策略（截止11月5日）
+✅ 任务2: 加强小红书内容差异化（截止11月10日）
+✅ 任务3: 进行市场竞争分析（截止11月12日）
+
+所有任务已安排完成！共创建了3个任务，负责人都是测试员工，您可以在飞书中查看。"
+
 请用自然对话的方式回答用户的问题。回答要简洁、专业，就像一个真实的顾问在跟CEO对话。不要使用过多的表情符号，保持专业但友好的语气。"""
                 }
             ]
@@ -303,15 +372,113 @@ async def chat_with_s8_stream(request: ChatRequest):
                 "content": user_message
             })
 
+            # 获取MCP工具（如果可用）
+            tools = None
+            if app_state.mcp_client:
+                try:
+                    tools = app_state.mcp_client.get_tools_for_openai()
+                    print(f"🔧 已加载 {len(tools)} 个MCP工具")
+                except Exception as e:
+                    print(f"⚠️  获取MCP工具失败: {e}")
+
             print("🤖 开始流式调用LLM...")
 
-            # 流式调用LLM
-            async for chunk in app_state.llm_client.async_chat_completion_stream(messages):
-                full_reply += chunk
-                # 发送SSE格式数据
-                yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
+            # 递归循环：持续处理工具调用，直到LLM不再需要调用工具
+            max_iterations = 10  # 防止无限循环
+            iteration = 0
 
-            print(f"✅ 流式输出完成，总长度: {len(full_reply)}")
+            while iteration < max_iterations:
+                iteration += 1
+                print(f"🔄 第 {iteration} 轮LLM调用...")
+
+                has_tool_calls = False
+
+                # 流式调用LLM（带工具）
+                async for chunk in app_state.llm_client.async_chat_completion_stream(messages, tools=tools):
+                    chunk_type = chunk.get("type")
+
+                    # 文本内容
+                    if chunk_type == "content":
+                        content = chunk.get("content", "")
+                        full_reply += content
+                        # 发送SSE格式数据
+                        yield f"data: {json.dumps({'type': 'content', 'content': content}, ensure_ascii=False)}\n\n"
+
+                    # 工具调用
+                    elif chunk_type == "tool_calls":
+                        has_tool_calls = True
+                        tool_calls = chunk.get("tool_calls", [])
+                        print(f"🔧 LLM请求调用 {len(tool_calls)} 个工具")
+
+                        # 通知前端工具调用开始
+                        yield f"data: {json.dumps({'type': 'tool_call_start', 'tool_calls': tool_calls}, ensure_ascii=False)}\n\n"
+
+                        # 执行工具调用
+                        tool_results = []
+                        for tool_call in tool_calls:
+                            tool_name = tool_call["function"]["name"]
+                            tool_args_str = tool_call["function"]["arguments"]
+
+                            print(f"  🛠️ 调用工具: {tool_name}")
+                            print(f"  📝 参数: {tool_args_str}")
+
+                            try:
+                                import json as json_lib
+                                tool_args = json_lib.loads(tool_args_str)
+
+                                # 调用MCP工具
+                                result = app_state.mcp_client.call_tool(tool_name, tool_args)
+                                print(f"  ✅ 工具执行成功: {result}")
+
+                                tool_results.append({
+                                    "tool_call_id": tool_call["id"],
+                                    "role": "tool",
+                                    "name": tool_name,
+                                    "content": json_lib.dumps(result, ensure_ascii=False)
+                                })
+
+                                # 通知前端工具执行成功
+                                yield f"data: {json.dumps({'type': 'tool_result', 'tool_name': tool_name, 'result': result}, ensure_ascii=False)}\n\n"
+
+                            except Exception as e:
+                                error_msg = f"工具调用失败: {str(e)}"
+                                print(f"  ❌ {error_msg}")
+                                tool_results.append({
+                                    "tool_call_id": tool_call["id"],
+                                    "role": "tool",
+                                    "name": tool_name,
+                                    "content": error_msg
+                                })
+                                yield f"data: {json.dumps({'type': 'tool_error', 'tool_name': tool_name, 'error': error_msg}, ensure_ascii=False)}\n\n"
+
+                        # 将工具调用和结果添加到消息历史
+                        messages.append({
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": tool_calls
+                        })
+                        messages.extend(tool_results)
+
+                        # 继续下一轮循环，让LLM决定是否继续调用工具或生成最终回复
+                        print("🤖 工具执行完成，继续下一轮LLM调用...")
+
+                    # 完成
+                    elif chunk_type == "done":
+                        if not has_tool_calls:
+                            # 没有工具调用，说明LLM已经生成了最终回复
+                            print(f"✅ 流式输出完成，总长度: {len(full_reply)}")
+                        break
+
+                    # 错误
+                    elif chunk_type == "error":
+                        error = chunk.get("error", "未知错误")
+                        print(f"❌ LLM错误: {error}")
+                        yield f"data: {json.dumps({'type': 'error', 'error': error}, ensure_ascii=False)}\n\n"
+                        break
+
+                # 如果这一轮没有工具调用，说明任务完成，退出循环
+                if not has_tool_calls:
+                    break
 
             # 发送完成标志
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"

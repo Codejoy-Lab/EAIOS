@@ -15,6 +15,7 @@ from app.api import memory, scenarios, health, s8_decision
 # 导入核心模块
 from app.core.memory import MemoryManager
 from app.core.llm import LLMClient
+from app.core.mcp_client import MCPClient
 from app.core.state import app_state, get_app_state
 
 # 加载环境变量
@@ -37,6 +38,17 @@ async def lifespan(app: FastAPI):
         print("⚠️  警告: OPENAI_API_KEY 未设置")
     app_state.llm_client = LLMClient(api_key=openai_key)
     print("✅ LLM客户端初始化完成")
+
+    # 初始化MCP客户端（飞书任务）
+    feishu_mcp_url = os.getenv("FEISHU_MCP_URL", "http://8.219.250.187:8004/e/65p7h5nxfvjrniix/mcp")
+    try:
+        app_state.mcp_client = MCPClient(feishu_mcp_url)
+        # 测试连接并获取可用工具
+        tools = app_state.mcp_client.list_tools()
+        print(f"✅ MCP客户端初始化完成，可用工具: {[t.name for t in tools]}")
+    except Exception as e:
+        print(f"⚠️  警告: MCP客户端初始化失败: {e}")
+        app_state.mcp_client = None
 
     print("🎉 平台启动成功！")
 

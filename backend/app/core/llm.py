@@ -131,37 +131,92 @@ class LLMClient:
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
-        temperature: float = 0.7
-    ) -> AsyncGenerator[str, None]:
+        temperature: float = 0.7,
+        tools: Optional[List[Dict]] = None
+    ) -> AsyncGenerator[Dict, None]:
         """
-        异步流式调用
+        异步流式调用（支持 Function Calling）
 
         Args:
             messages: 消息列表
             model: 模型名称（可选）
             temperature: 温度
+            tools: OpenAI tools 定义（可选）
 
         Yields:
-            流式内容片段
+            流式数据包：
+            - {"type": "content", "content": "..."}  # 文本内容
+            - {"type": "tool_call", "tool_call": {...}}  # 工具调用
+            - {"type": "done", "finish_reason": "..."}  # 完成
         """
         if not self.async_client:
-            yield "Error: OpenAI异步客户端未初始化"
+            yield {"type": "error", "error": "OpenAI异步客户端未初始化"}
             return
 
         try:
-            stream = await self.async_client.chat.completions.create(
-                model=model or self.model,
-                messages=messages,
-                temperature=temperature,
-                stream=True
-            )
+            kwargs = {
+                "model": model or self.model,
+                "messages": messages,
+                "temperature": temperature,
+                "stream": True
+            }
+
+            # 如果提供了 tools，添加到请求中
+            if tools:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "auto"
+
+            stream = await self.async_client.chat.completions.create(**kwargs)
+
+            tool_calls_buffer = []  # 累积工具调用
 
             async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                delta = chunk.choices[0].delta
+                finish_reason = chunk.choices[0].finish_reason
+
+                # 文本内容
+                if delta.content:
+                    yield {"type": "content", "content": delta.content}
+
+                # 工具调用
+                if delta.tool_calls:
+                    for tool_call in delta.tool_calls:
+                        index = tool_call.index
+
+                        # 确保buffer有足够的空间
+                        while len(tool_calls_buffer) <= index:
+                            tool_calls_buffer.append({
+                                "id": "",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""}
+                            })
+
+                        # 累积工具调用数据
+                        if tool_call.id:
+                            tool_calls_buffer[index]["id"] = tool_call.id
+                        if tool_call.function:
+                            if tool_call.function.name:
+                                tool_calls_buffer[index]["function"]["name"] = tool_call.function.name
+                            if tool_call.function.arguments:
+                                tool_calls_buffer[index]["function"]["arguments"] += tool_call.function.arguments
+
+                # 完成
+                if finish_reason:
+                    # 如果有工具调用，发送完整的工具调用数据
+                    if tool_calls_buffer:
+                        yield {
+                            "type": "tool_calls",
+                            "tool_calls": tool_calls_buffer,
+                            "finish_reason": finish_reason
+                        }
+
+                    yield {
+                        "type": "done",
+                        "finish_reason": finish_reason
+                    }
 
         except Exception as e:
-            yield f"Error: {str(e)}"
+            yield {"type": "error", "error": str(e)}
 
     def build_messages_with_memory(
         self,

@@ -184,8 +184,8 @@ const S8Decision = () => {
   }
 
   // 添加Decision消息
-  const addDecisionMessage = (role, content, agentName = null, icon = null) => {
-    setDecisionMessages(prev => [...prev, { role, content, agentName, icon, timestamp: Date.now() }])
+  const addDecisionMessage = (role, content, agentName = null, icon = null, toolCall = null, buttons = null) => {
+    setDecisionMessages(prev => [...prev, { role, content, agentName, icon, toolCall, buttons, timestamp: Date.now() }])
   }
 
   // 添加Meeting消息
@@ -209,6 +209,16 @@ const S8Decision = () => {
       // 显示报告结果
       const reportSummary = formatReportSummary(report)
       addDecisionMessage('agent', reportSummary, 'S8 决策军师', '🧠')
+
+      // 添加询问消息（带按钮）
+      setTimeout(() => {
+        addDecisionMessage('agent', '需要我帮您将这些建议安排为飞书任务吗？', 'S8 决策军师', '🧠', null, {
+          buttons: [
+            { text: '是，请安排', value: '是，请帮我安排这些任务' },
+            { text: '暂时不需要', value: '暂时不需要，我先看看' }
+          ]
+        })
+      }, 500)
     } catch (error) {
       console.error('生成报告失败:', error)
       addDecisionMessage('agent', '❌ 生成报告失败: ' + error.message, 'S8 决策军师', '🧠')
@@ -244,10 +254,19 @@ const S8Decision = () => {
       report.recommendations.actions.forEach((action, idx) => {
         messages.push(`\n${idx + 1}. ${action.title}\n   原因：${action.reason}`)
       })
-      messages.push(`\n以上建议都是基于最新的数据和企业记忆库的信息，您觉得怎么样？`)
+      messages.push(`\n以上建议都是基于最新的数据和企业记忆库的信息。`)
     }
 
     return messages.join('')
+  }
+
+  // 发送快捷回复
+  const handleQuickReply = (text) => {
+    setDecisionInput(text)
+    // 触发发送
+    setTimeout(() => {
+      document.querySelector('#decision-send-btn')?.click()
+    }, 100)
   }
 
   // 处理用户提问（决策军师） - 流式版本
@@ -311,9 +330,75 @@ const S8Decision = () => {
                 accumulatedContent += data.content
                 setDecisionMessages(prev => {
                   const newMessages = [...prev]
-                  newMessages[newMessages.length - 1] = {
-                    ...newMessages[newMessages.length - 1],
-                    content: accumulatedContent
+                  // 检查最后一条消息是否是agent消息
+                  const lastMessage = newMessages[newMessages.length - 1]
+                  if (lastMessage && lastMessage.role === 'agent') {
+                    // 更新现有agent消息
+                    newMessages[newMessages.length - 1] = {
+                      ...lastMessage,
+                      content: accumulatedContent
+                    }
+                  } else {
+                    // 最后一条不是agent消息（可能是tool消息），添加新的agent消息
+                    newMessages.push({
+                      role: 'agent',
+                      content: accumulatedContent,
+                      agentName: 'S8 决策军师',
+                      icon: '🧠',
+                      timestamp: Date.now()
+                    })
+                  }
+                  return newMessages
+                })
+              }
+              } else if (data.type === 'tool_call_start') {
+                // 工具调用开始
+                console.log('🔧 工具调用开始:', data.tool_calls)
+                data.tool_calls.forEach(toolCall => {
+                  addDecisionMessage('tool', '', null, null, {
+                    name: toolCall.function.name,
+                    status: 'calling'
+                  })
+                })
+              } else if (data.type === 'tool_result') {
+                // 工具调用成功
+                console.log('✅ 工具调用成功:', data.tool_name, data.result)
+                setDecisionMessages(prev => {
+                  const newMessages = [...prev]
+                  // 找到最后一个tool消息并更新
+                  for (let i = newMessages.length - 1; i >= 0; i--) {
+                    if (newMessages[i].role === 'tool' && newMessages[i].toolCall?.name === data.tool_name) {
+                      newMessages[i] = {
+                        ...newMessages[i],
+                        toolCall: {
+                          ...newMessages[i].toolCall,
+                          status: 'success',
+                          result: data.result
+                        }
+                      }
+                      break
+                    }
+                  }
+                  return newMessages
+                })
+              } else if (data.type === 'tool_error') {
+                // 工具调用失败
+                console.error('❌ 工具调用失败:', data.tool_name, data.error)
+                setDecisionMessages(prev => {
+                  const newMessages = [...prev]
+                  // 找到最后一个tool消息并更新
+                  for (let i = newMessages.length - 1; i >= 0; i--) {
+                    if (newMessages[i].role === 'tool' && newMessages[i].toolCall?.name === data.tool_name) {
+                      newMessages[i] = {
+                        ...newMessages[i],
+                        toolCall: {
+                          ...newMessages[i].toolCall,
+                          status: 'error',
+                          error: data.error
+                        }
+                      }
+                      break
+                    }
                   }
                   return newMessages
                 })
@@ -515,6 +600,9 @@ const S8Decision = () => {
                   content={msg.content}
                   agentName={msg.agentName}
                   icon={msg.icon}
+                  toolCall={msg.toolCall}
+                  buttons={msg.buttons}
+                  onButtonClick={handleQuickReply}
                   streaming={isGenerating && idx === decisionMessages.length - 1}
                 />
               ))}
@@ -538,6 +626,7 @@ const S8Decision = () => {
                   disabled={isGenerating}
                 />
                 <button
+                  id="decision-send-btn"
                   onClick={handleSendDecision}
                   disabled={!decisionInput.trim() || isGenerating}
                   className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-all disabled:cursor-not-allowed shadow-sm hover:shadow-md"
