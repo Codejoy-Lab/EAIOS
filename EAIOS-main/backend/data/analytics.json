@@ -1,0 +1,97 @@
+{
+  "metrics": {
+    "conversion_rate": {
+      "name": "转化率",
+      "current": 3.2,
+      "previous": 4.1,
+      "change": -0.9,
+      "change_percent": -21.95,
+      "trend": "下降",
+      "threshold": 3.5,
+      "status": "异常",
+      "breakdown": {
+        "小红书": 2.8,
+        "抖音": 3.5,
+        "官网": 3.3
+      }
+    },
+    "revenue": {
+      "name": "营收",
+      "current": 1250000,
+      "previous": 1180000,
+      "change": 70000,
+      "change_percent": 5.93,
+      "trend": "上升",
+      "status": "正常"
+    },
+    "customer_acquisition_cost": {
+      "name": "获客成本",
+      "current": 350,
+      "previous": 280,
+      "change": 70,
+      "change_percent": 25.0,
+      "trend": "上升",
+      "threshold": 300,
+      "status": "异常"
+    },
+    "active_users": {
+      "name": "活跃用户数",
+      "current": 15420,
+      "previous": 15890,
+      "change": -470,
+      "change_percent": -2.96,
+      "trend": "下降",
+      "status": "正常"
+    }
+  },
+  "anomalies": [
+    {
+      "metric": "conversion_rate",
+      "description": "转化率从4.1%下降到3.2%，下降21.95%",
+      "possible_causes": [
+        "小红书渠道转化率明显低于其他渠道（2.8% vs 3.5%）",
+        "可能与近期活动文案质量下降有关",
+        "竞品近期推出促销活动"
+      ],
+      "severity": "高",
+      "detected_at": "2025-10-29T08:00:00"
+    },
+    {
+      "metric": "customer_acquisition_cost",
+      "description": "获客成本上升25%，超过阈值",
+      "possible_causes": [
+        "广告投放精准度下降",
+        "竞价成本上升",
+        "转化率下降导致单客成本增加"
+      ],
+      "severity": "中",
+      "detected_at": "2025-10-29T08:00:00"
+    }
+  ],
+  "recommendations": [
+    {
+      "for_metric": "conversion_rate",
+      "action": "优化小红书渠道内容策略",
+      "reason": "该渠道转化率明显低于平均水平",
+      "expected_impact": "提升0.5-0.7个百分点",
+      "priority": "高",
+      "owner": "市场部"
+    },
+    {
+      "for_metric": "conversion_rate",
+      "action": "分析并改进活动文案质量",
+      "reason": "近期文案点击率下降",
+      "expected_impact": "提升0.3个百分点",
+      "priority": "中",
+      "owner": "内容团队"
+    },
+    {
+      "for_metric": "customer_acquisition_cost",
+      "action": "调整广告投放人群定向",
+      "reason": "精准度不足导致浪费",
+      "expected_impact": "降低50-80元/人",
+      "priority": "高",
+      "owner": "投放团队"
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "campaigns": [
+    {
+      "campaign_id": "C001",
+      "name": "双11预热活动",
+      "type": "促销",
+      "status": "计划中",
+      "start_date": "2025-11-01",
+      "end_date": "2025-11-11",
+      "channels": ["小红书", "抖音", "公众号"],
+      "target_audience": "年轻女性，18-35岁",
+      "budget": 50000,
+      "kpi": {
+        "target_impressions": 1000000,
+        "target_clicks": 50000,
+        "target_conversions": 2000
+      }
+    },
+    {
+      "campaign_id": "C002",
+      "name": "新品上市推广",
+      "type": "品宣",
+      "status": "进行中",
+      "start_date": "2025-10-20",
+      "end_date": "2025-10-31",
+      "channels": ["抖音", "官网"],
+      "performance": {
+        "impressions": 450000,
+        "clicks": 18000,
+        "conversions": 540,
+        "ctr": 4.0,
+        "cvr": 3.0
+      }
+    }
+  ],
+  "content_calendar": [
+    {
+      "date": "2025-10-30",
+      "theme": "智能生活",
+      "priority_products": ["AI音箱", "智能手表"],
+      "channels": ["小红书", "抖音"],
+      "status": "待生成"
+    },
+    {
+      "date": "2025-10-31",
+      "theme": "双11预热",
+      "priority_products": ["全品类"],
+      "channels": ["公众号", "抖音"],
+      "status": "待生成"
+    }
+  ],
+  "historical_performance": [
+    {
+      "campaign_name": "国庆促销",
+      "date": "2025-10-01",
+      "channel": "小红书",
+      "theme": "假期优惠",
+      "impressions": 800000,
+      "clicks": 32000,
+      "conversions": 1120,
+      "ctr": 4.0,
+      "cvr": 3.5,
+      "roi": 2.8,
+      "best_content": "【国庆特惠】智能家居套装，让你的假期更智能！限时7折，手慢无！",
+      "learnings": "直接优惠+紧迫感文案效果好"
+    },
+    {
+      "campaign_name": "中秋活动",
+      "date": "2025-09-15",
+      "channel": "抖音",
+      "theme": "中秋送礼",
+      "impressions": 650000,
+      "clicks": 26000,
+      "conversions": 780,
+      "ctr": 4.0,
+      "cvr": 3.0,
+      "roi": 2.3,
+      "best_content": "中秋送什么？送智能，送心意！AI音箱，让团圆更温馨",
+      "learnings": "情感化文案+产品实用性"
+    }
+  ],
+  "channel_insights": {
+    "小红书": {
+      "best_post_time": ["10:00-12:00", "20:00-22:00"],
+      "avg_ctr": 3.5,
+      "avg_cvr": 2.8,
+      "content_preference": "图文种草、实用测评、场景化展示",
+      "audience": "一二线城市女性，注重品质和口碑"
+    },
+    "抖音": {
+      "best_post_time": ["12:00-14:00", "19:00-21:00"],
+      "avg_ctr": 4.2,
+      "avg_cvr": 3.5,
+      "content_preference": "短视频、剧情化、强视觉冲击",
+      "audience": "18-40岁，下沉市场占比高"
+    },
+    "公众号": {
+      "best_post_time": ["08:00-09:00", "21:00-22:00"],
+      "avg_ctr": 2.8,
+      "avg_cvr": 4.2,
+      "content_preference": "深度内容、产品对比、使用教程",
+      "audience": "忠实粉丝，转化意愿强"
+    }
+  },
+  "anomaly_detected": {
+    "date": "2025-10-29",
+    "issue": "小红书CTR从3.5%下降到2.1%",
+    "possible_reasons": [
+      "近期内容同质化严重",
+      "竞品加大投放力度",
+      "用户疲劳"
+    ]
+  }
+}
