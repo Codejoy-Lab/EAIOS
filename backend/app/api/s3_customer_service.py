@@ -111,7 +111,8 @@ async def chat_stream(req: ChatRequest):
                 memory_type="interaction",
                 source="s3_customer_service",
                 metadata={
-                    "domain": "customer_service",
+                    "level": "scenario",             # 🔑 场景级记忆
+                    "domain": "customer_service",    # 🔑 客服域
                     "scope": {"customerId": req.customer_id},
                     "category": "customer_point"
                 },
