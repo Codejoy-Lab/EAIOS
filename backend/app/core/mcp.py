@@ -270,6 +270,119 @@ class DataAnalyticsTool(MCPTool):
         }
 
 
+class BusinessItemsTool(MCPTool):
+    """业务事项查询工具"""
+
+    def __init__(self):
+        super().__init__(
+            name="query_business_items",
+            description="查询企业业务事项（决策事项、待办、跟进任务等），支持按状态、优先级、类型筛选"
+        )
+
+    async def execute(
+        self,
+        status: Optional[str] = None,
+        priority: Optional[str] = None,
+        item_type: Optional[str] = None,
+        limit: int = 10
+    ) -> Dict:
+        """
+        查询业务事项
+
+        Args:
+            status: 状态筛选 (pending/in_progress/completed/cancelled)
+            priority: 优先级筛选 (low/medium/high/urgent)
+            item_type: 类型筛选 (decision/todo/follow_up/metric/alert)
+            limit: 返回数量
+
+        Returns:
+            业务事项列表
+        """
+        try:
+            import os
+            data_file = os.path.join(os.path.dirname(__file__), "..", "..", "data", "business_items.json")
+
+            if os.path.exists(data_file):
+                with open(data_file, 'r', encoding='utf-8') as f:
+                    items = json.load(f)
+            else:
+                items = []
+
+            # 过滤
+            filtered = items
+            if status:
+                filtered = [item for item in filtered if item.get("status") == status]
+            if priority:
+                filtered = [item for item in filtered if item.get("priority") == priority]
+            if item_type:
+                filtered = [item for item in filtered if item.get("type") == item_type]
+
+            # 排序：按更新时间倒序
+            filtered.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+
+            # 限制数量
+            filtered = filtered[:limit]
+
+            # 统计
+            stats = {
+                "total": len(filtered),
+                "by_status": {},
+                "by_priority": {}
+            }
+
+            for item in filtered:
+                s = item.get("status", "pending")
+                p = item.get("priority", "medium")
+                stats["by_status"][s] = stats["by_status"].get(s, 0) + 1
+                stats["by_priority"][p] = stats["by_priority"].get(p, 0) + 1
+
+            return {
+                "data": {
+                    "items": filtered,
+                    "stats": stats
+                },
+                "source": {
+                    "system": "业务事项管理系统",
+                    "description": "企业重要事项、待办、跟进任务等",
+                    "responsible": "各部门负责人"
+                }
+            }
+
+        except Exception as e:
+            return {
+                "data": None,
+                "error": str(e),
+                "source": {"system": "业务事项管理系统"}
+            }
+
+    def get_schema(self) -> Dict:
+        return {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "状态筛选",
+                    "enum": ["pending", "in_progress", "completed", "cancelled"]
+                },
+                "priority": {
+                    "type": "string",
+                    "description": "优先级筛选",
+                    "enum": ["low", "medium", "high", "urgent"]
+                },
+                "item_type": {
+                    "type": "string",
+                    "description": "事项类型",
+                    "enum": ["decision", "todo", "follow_up", "metric", "alert"]
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "返回数量",
+                    "default": 10
+                }
+            }
+        }
+
+
 class S6AnalyticsReportTool(MCPTool):
     """S6数据分析报告工具"""
 
@@ -372,5 +485,6 @@ def init_default_tools():
     registry.register(CRMTool())
     registry.register(DocumentTool())
     registry.register(DataAnalyticsTool())
+    registry.register(BusinessItemsTool())
     registry.register(S6AnalyticsReportTool())
-    print("✅ MCP工具初始化完成（含S6数据分析报告）")
+    print("✅ MCP工具初始化完成（含业务事项查询和S6报告）")

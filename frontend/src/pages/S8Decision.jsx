@@ -608,40 +608,69 @@ const S8Decision = () => {
           {/* 决策军师聊天区域 */}
           <div className="flex-1 min-h-0 bg-slate-800/50 rounded-lg border border-slate-700/50 flex flex-col overflow-hidden">
             {/* 头部 */}
-            <div className="px-5 py-3 border-b border-slate-700/50 bg-slate-800/80 backdrop-blur-sm flex items-center gap-3">
-              <span className="text-xl">🧠</span>
-              <div className="flex-1">
-                <h3 className="font-semibold text-gray-200 text-sm">S8 决策军师</h3>
-                <p className="text-xs text-gray-500">自动分析经营数据，生成决策建议</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (decisionMessages.length === 0 && meetingMessages.length === 0) return
-                    setDecisionMessages([])
-                    setMeetingMessages([])
-                    try {
-                      localStorage.removeItem('s8_decision_messages')
-                      localStorage.removeItem('s8_meeting_messages')
-                    } catch (e) {}
-                    setStarted(false)
-                  }}
-                  className="px-3 py-1.5 bg-slate-700/60 hover:bg-slate-600/70 text-gray-200 text-xs font-medium rounded-md transition-all border border-slate-600/50"
-                >
-                  清除
-                </button>
-                {!started && (
+            <div className="px-5 py-3 border-b border-slate-700/50 bg-slate-800/80 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-xl">🧠</span>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-200 text-sm">S8 决策军师</h3>
+                  <p className="text-xs text-gray-500">自动分析经营数据，生成决策建议</p>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={startWorkflow}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-all"
+                    onClick={() => {
+                      if (decisionMessages.length === 0 && meetingMessages.length === 0) return
+                      setDecisionMessages([])
+                      setMeetingMessages([])
+                      try {
+                        localStorage.removeItem('s8_decision_messages')
+                        localStorage.removeItem('s8_meeting_messages')
+                      } catch (e) {}
+                      setStarted(false)
+                    }}
+                    className="px-3 py-1.5 bg-slate-700/60 hover:bg-slate-600/70 text-gray-200 text-xs font-medium rounded-md transition-all border border-slate-600/50"
                   >
-                    开始演示
+                    清除
                   </button>
-                )}
+                  {!started && (
+                    <button
+                      onClick={startWorkflow}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-all"
+                    >
+                      开始演示
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Tab切换按钮 */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDecisionTab('chat')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                    decisionTab === 'chat'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                  }`}
+                >
+                  💬 对话
+                </button>
+                <button
+                  onClick={() => setDecisionTab('items')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                    decisionTab === 'items'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-700 text-gray-400 hover:bg-slate-600'
+                  }`}
+                >
+                  📋 业务事项
+                </button>
               </div>
             </div>
 
-            {/* 消息列表 */}
+            {/* 内容区域 - 根据tab切换 */}
+            {decisionTab === 'chat' ? (
+              <>
+                {/* 消息列表 */}
             <div ref={decisionChatRef} className="flex-1 overflow-y-auto">
               {decisionMessages.length === 0 && (
                 <div className="flex items-center justify-center h-full text-gray-500 text-sm">
@@ -690,6 +719,13 @@ const S8Decision = () => {
                 </button>
               </div>
             </div>
+              </>
+            ) : (
+              /* 业务事项看板 */
+              <div className="flex-1 overflow-hidden p-4">
+                <BusinessItemsBoard />
+              </div>
+            )}
           </div>
         </div>
 
