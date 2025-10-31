@@ -147,20 +147,23 @@ async def get_customer_points(customer_id: str, limit: int = 3):
     if not app_state.memory_manager:
         raise HTTPException(status_code=500, detail="系统未初始化")
 
-    results = app_state.memory_manager.search_memories(
-        query=customer_id,
-        memory_type=None,
-        limit=20,
-        enabled_only=True,
-        user_id="system"
-    )
-    points = []
-    for m in results:
-        md = m.metadata or {}
-        if md.get("domain") == "customer_service" and md.get("scope", {}).get("customerId") == customer_id:
-            points.append({"id": m.id, "content": m.content, "created_at": m.created_at})
-    points = sorted(points, key=lambda x: x["created_at"], reverse=True)[:limit]
-    return {"success": True, "points": points}
+    try:
+        results = app_state.memory_manager.search_memories(
+            query=customer_id,
+            memory_type=None,
+            level="scenario",              # 🔑 只读场景级记忆
+            domain="customer_service",     # 🔑 只读客服域
+            scope={"customerId": customer_id},  # 🔑 按客户ID过滤
+            limit=limit,
+            enabled_only=True,
+            user_id="system"
+        )
+        points = [{"id": m.id, "content": m.content, "created_at": m.created_at} for m in results]
+        points = sorted(points, key=lambda x: x["created_at"], reverse=True)
+        return {"success": True, "points": points}
+    except Exception as e:
+        print(f"⚠️ 获取客户历史要点失败: {e}")
+        return {"success": True, "points": []}
 
 
 @router.delete("/customer/{customer_id}/clear")
