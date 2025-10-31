@@ -44,8 +44,13 @@ export default function S3CustomerService() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
-        setChatMsgs(parsed)
-        console.log('已恢复聊天记录:', Object.keys(parsed))
+        // 清理所有空消息
+        const cleaned = {}
+        for (const [customerId, msgs] of Object.entries(parsed)) {
+          cleaned[customerId] = msgs.filter(m => m.content && m.content.trim())
+        }
+        setChatMsgs(cleaned)
+        console.log('已恢复并清理聊天记录:', Object.keys(cleaned))
       } catch(e) {
         console.error('恢复聊天记录失败:', e)
       }
@@ -86,11 +91,6 @@ export default function S3CustomerService() {
     }
   }, [chatMsgs, customerId])
 
-  const getCurrentMessages = () => chatMsgs[customerId] || []
-  const setCurrentMessages = (msgs) => {
-    setChatMsgs(prev => ({ ...prev, [customerId]: msgs }))
-  }
-
   function refreshPoints(id) {
     axios.get(`/api/s3/customer/points?customer_id=${id}&limit=3`)
       .then(res => {
@@ -102,60 +102,97 @@ export default function S3CustomerService() {
 
   const handleSend = async () => {
     if (!chatInput.trim() || streaming) return
-    setStreaming(true)
-    const msg = chatInput
-    setChatInput("")
     
-    const currentMsgs = getCurrentMessages()
-    // 添加用户消息和空的agent消息（用于流式更新）
-    const updatedMsgs = [...currentMsgs, { role: "user", content: msg }, { role: "agent", content: "", streaming: true }]
-    setCurrentMessages(updatedMsgs)
+    const userMessage = chatInput
+    setChatInput("")
+    setStreaming(true)
+    
+    // 添加用户消息
+    setChatMsgs(prev => ({
+      ...prev,
+      [customerId]: [...(prev[customerId] || []), { role: "user", content: userMessage }]
+    }))
+    
+    // 添加空agent消息用于流式更新
+    setChatMsgs(prev => ({
+      ...prev,
+      [customerId]: [...(prev[customerId] || []), { role: "agent", content: "", streaming: true, agentName: "智能客服", icon: "🎧" }]
+    }))
 
     try {
+      // 构建对话历史（不包括刚添加的user消息和空agent消息）
+      const currentMsgs = chatMsgs[customerId] || []
+      const conversationHistory = currentMsgs
+        .filter(m => (m.role === "user" || m.role === "agent") && m.content && m.content.trim())
+        .map(m => ({
+          role: m.role === "agent" ? "assistant" : "user",
+          content: m.content
+        }))
+      
+      console.log('[S3] 发送对话历史:', conversationHistory)
+
       const response = await fetch("/api/s3/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_id: customerId,
-          message: msg,
-          conversation_history: currentMsgs.filter(m => m.role === "user" || m.role === "agent").map(m => ({role: m.role, content: m.content}))
+          message: userMessage,
+          conversation_history: conversationHistory
         })
       })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`请求失败: ${response.status} - ${errorText}`)
+      }
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder("utf-8")
-      let buffer = ""
-      let accumulated = ""
+      let accumulatedContent = ""
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n\n")
-        buffer = lines.pop() || ""
+        
+        const chunk = decoder.decode(value)
+        const lines = chunk.split("\n")
 
-        for (let line of lines) {
+        for (const line of lines) {
           if (line.startsWith("data: ")) {
-            const data = JSON.parse(line.slice(6))
-            if (data.type === "content") {
-              accumulated += data.content
-              setChatMsgs(prev => {
-                const currentCustomerMsgs = prev[customerId] || []
-                const newMsgs = [...currentCustomerMsgs]
-                if (newMsgs.length > 0) {
-                  newMsgs[newMsgs.length - 1] = { role: "agent", content: accumulated, streaming: true }
-                }
-                return { ...prev, [customerId]: newMsgs }
-              })
-            } else if (data.type === "done") {
-              setChatMsgs(prev => {
-                const currentCustomerMsgs = prev[customerId] || []
-                const newMsgs = [...currentCustomerMsgs]
-                if (newMsgs.length > 0) {
-                  newMsgs[newMsgs.length - 1] = { role: "agent", content: accumulated, streaming: false }
-                }
-                return { ...prev, [customerId]: newMsgs }
-              })
+            try {
+              const data = JSON.parse(line.slice(6))
+              
+              if (data.type === "content") {
+                accumulatedContent += data.content
+                // 更新最后一条agent消息
+                setChatMsgs(prev => {
+                  const customerMsgs = [...(prev[customerId] || [])]
+                  const lastMsg = customerMsgs[customerMsgs.length - 1]
+                  if (lastMsg && lastMsg.role === "agent") {
+                    customerMsgs[customerMsgs.length - 1] = {
+                      ...lastMsg,
+                      content: accumulatedContent,
+                      streaming: true
+                    }
+                  }
+                  return { ...prev, [customerId]: customerMsgs }
+                })
+              } else if (data.type === "done") {
+                // 标记流式完成
+                setChatMsgs(prev => {
+                  const customerMsgs = [...(prev[customerId] || [])]
+                  const lastMsg = customerMsgs[customerMsgs.length - 1]
+                  if (lastMsg && lastMsg.role === "agent") {
+                    customerMsgs[customerMsgs.length - 1] = {
+                      ...lastMsg,
+                      streaming: false
+                    }
+                  }
+                  return { ...prev, [customerId]: customerMsgs }
+                })
+              }
+            } catch (parseError) {
+              console.error("[S3] JSON解析错误:", parseError, line)
             }
           }
         }
@@ -164,15 +201,17 @@ export default function S3CustomerService() {
       // 更新统计
       setStats(s => ({ ...s, totalChats: s.totalChats + 1, newPoints: s.newPoints + 1 }))
     } catch (e) {
-      console.error("发送失败:", e)
-      // 移除失败的空agent消息
+      console.error("[S3] 发送失败:", e)
+      alert("发送失败: " + e.message)
+      // 移除失败的最后两条消息
       setChatMsgs(prev => {
-        const currentCustomerMsgs = prev[customerId] || []
-        return { ...prev, [customerId]: currentCustomerMsgs.slice(0, -1) }
+        const customerMsgs = prev[customerId] || []
+        return { ...prev, [customerId]: customerMsgs.slice(0, -2) }
       })
+    } finally {
+      setStreaming(false)
+      refreshPoints(customerId)
     }
-    setStreaming(false)
-    refreshPoints(customerId)
   }
 
   const handleClearCustomer = async () => {
@@ -328,10 +367,10 @@ export default function S3CustomerService() {
         {/* 中：聊天区 */}
         <div className="col-span-6 bg-slate-800 rounded-lg border border-slate-700 flex flex-col">
           <div ref={chatRef} className="flex-1 overflow-y-auto p-4 min-h-[500px]">
-            {getCurrentMessages().length === 0 && (
+            {(chatMsgs[customerId] || []).length === 0 && (
               <div className="text-center text-gray-400 mt-20">请输入问题开始对话</div>
             )}
-            {getCurrentMessages().map((msg, idx) => (
+            {(chatMsgs[customerId] || []).map((msg, idx) => (
               <ChatMessage
                 key={idx}
                 role={msg.role}

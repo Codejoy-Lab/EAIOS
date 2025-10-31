@@ -265,6 +265,161 @@ npm run dev
 7. 重新开始对话
 8. 观察：Agent直接回答（不受该记忆约束）
 
+### S8 决策军师场景（完整实现）
+
+**场景定位**：展示"企业大脑+主动式决策+多轮工具调用"的AI决策能力
+
+#### 核心功能
+
+1. **多轮MCP工具调用**
+   - 支持最多10轮递归工具调用
+   - 自动分解复杂任务为多个子任务（如：一次性安排3个任务）
+   - 实时显示工具执行状态和结果
+
+2. **流式对话与工具状态**
+   - SSE（Server-Sent Events）流式输出，实时反馈
+   - 工具调用状态追踪：calling → success/error
+   - 支持三种工具事件：
+     - `tool_call_start`：工具开始调用
+     - `tool_result`：工具执行成功
+     - `tool_error`：工具执行失败
+
+3. **智能记忆管理**
+   - LLM自动判断对话是否值得保存到长期记忆
+   - 区分三类记忆：
+     - **工作偏好**（work_preference）：决策风格、管理风格、汇报偏好
+     - **公司背景**（company_background）：业务类型、团队规模、市场定位
+     - **业务决策**（business_decision）：战略决策、行动计划
+   - 仅记录企业经营相关信息，不记录CEO个人隐私
+
+4. **会议助手联动**
+   - 左侧：决策军师对话窗口（CEO视角的经营简报）
+   - 右侧：会议助手对话窗口（会议纪要提取）
+   - WebSocket实时通信，会议助手更新触发决策军师刷新
+
+5. **localStorage持久化**
+   - 聊天记录自动保存到浏览器本地存储
+   - 页面刷新后自动恢复对话历史
+   - 支持一键清除所有记录
+
+6. **手动启动控制**
+   - 点击"开始演示"按钮启动流程
+   - 避免自动启动导致的重复执行（React StrictMode兼容）
+
+#### 使用流程
+
+1. **启动演示**
+   ```
+   点击右上角"开始演示"按钮
+   → 系统发送欢迎消息
+   → 会议助手发送初始指引
+   → 可开始对话或使用工具
+   ```
+
+2. **多轮工具调用示例**
+   ```
+   用户问："请帮我安排三个任务：优化营销策略、降低获客成本、提升产品质量"
+
+   → 第1轮LLM调用：
+      - AI返回tool_call: anpaitask("优化营销策略")
+      - 前端显示"调用中..."
+      - 后端执行工具并返回结果
+      - 前端更新为"成功 ✓"
+
+   → 第2轮LLM调用：
+      - AI继续调用: anpaitask("降低获客成本")
+      - 执行并返回结果
+
+   → 第3轮LLM调用：
+      - AI继续调用: anpaitask("提升产品质量")
+      - 执行并返回结果
+
+   → 第4轮LLM调用：
+      - AI不再调用工具，生成总结文本
+      - 前端显示："已为您安排三个任务，分别是..."
+   ```
+
+3. **与会议助手联动**
+   ```
+   在右侧会议助手窗口输入会议纪要：
+   "今天讨论了Q4营销策略，决定增加社交媒体投放预算20%"
+
+   → 会议助手提取关键信息
+   → 触发REPORT_UPDATED事件（通过WebSocket）
+   → 左侧决策军师收到通知
+   → 自动更新经营分析和建议
+   ```
+
+4. **清除对话历史**
+   ```
+   点击右上角"清除"按钮
+   → 清空左右两侧的所有聊天记录
+   → 清除localStorage中的持久化数据
+   → 重置"开始演示"状态
+   ```
+
+#### 技术实现
+
+- **后端接口**：
+  - `POST /api/s8/chat/stream` - 流式对话（SSE，支持多轮工具调用）
+  - `WebSocket /api/s8/ws` - 实时状态推送
+
+- **多轮工具调用逻辑**（`backend/app/api/s8_decision.py:386-484`）：
+  ```python
+  # 递归循环：持续处理工具调用，直到LLM不再需要调用工具
+  max_iterations = 10  # 防止无限循环
+  iteration = 0
+
+  while iteration < max_iterations:
+      iteration += 1
+      has_tool_calls = False
+
+      # 流式调用LLM（带工具）
+      async for chunk in llm_client.async_chat_completion_stream(messages, tools=tools):
+          if chunk_type == "tool_calls":
+              has_tool_calls = True
+              # 执行工具并将结果添加到消息历史
+              # 继续下一轮循环
+          elif chunk_type == "content":
+              # 输出文本内容
+
+      # 如果这一轮没有工具调用，说明任务完成，退出循环
+      if not has_tool_calls:
+          break
+  ```
+
+- **前端状态管理**：
+  - localStorage自动持久化（`s8_decision_messages`, `s8_meeting_messages`）
+  - 手动启动控制（`started`状态）
+  - 工具调用状态实时更新（SSE事件监听）
+
+- **智能记忆保存**（异步，不阻塞流式输出）：
+  ```python
+  # LLM判断对话价值
+  should_save, summary, memory_type = await _should_save_to_memory_llm(
+      user_message, ai_reply, llm_client
+  )
+
+  # 仅保存有价值的企业信息
+  if should_save:
+      app_state.mem0.add(
+          summary,
+          metadata={
+              "domain": "s8_decision",
+              "type": memory_type,  # work_preference/company_background/business_decision
+              "session_id": session_id
+          }
+      )
+  ```
+
+#### 演示价值点
+
+✅ **多轮工具调用**：一次请求自动执行多个子任务，无需人工干预
+✅ **实时状态反馈**：流式输出+工具状态追踪，用户体验流畅
+✅ **智能记忆管理**：自动识别并保存重要的企业信息
+✅ **双Agent联动**：决策军师+会议助手协同工作
+✅ **数据持久化**：刷新页面不丢失对话历史
+
 ---
 
 ## 🔧 核心功能说明

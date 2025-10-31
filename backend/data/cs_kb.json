@@ -1,0 +1,27 @@
+{
+  "company": [],
+  "product_faq": [],
+  "policy": [],
+  "new_release": [
+    {
+      "id": "KB_1",
+      "title": "新品IPHONE18",
+      "content": "新品IPHONE18"
+    },
+    {
+      "id": "KB_2",
+      "title": "新品IPHONE18",
+      "content": "新品IPHONE18"
+    },
+    {
+      "id": "KB_3",
+      "title": "新品大裤衩",
+      "content": "新品大裤衩"
+    },
+    {
+      "id": "KB_4",
+      "title": "新品小裤衩",
+      "content": "新品小裤衩"
+    }
+  ]
+}
