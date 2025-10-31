@@ -3,6 +3,7 @@ import axios from 'axios'
 import ScenarioTemplate from '../components/ScenarioTemplate'
 import ChatMessage from '../components/ChatMessage'
 import AgentDetailModal from '../components/AgentDetailModal'
+import CEOQuickNote from '../components/CEOQuickNote'
 
 // Agent状态卡片组件（可点击）
 const AgentCard = ({ name, icon, status, message, output, onClick }) => {
@@ -86,6 +87,9 @@ const S8Decision = () => {
 
   // 是否已开始演示
   const [started, setStarted] = useState(false)
+
+  // CEO快记面板
+  const [showQuickNote, setShowQuickNote] = useState(false)
 
   // WebSocket
   const ws = useRef(null)
@@ -760,6 +764,21 @@ const S8Decision = () => {
           onClose={() => setSelectedAgent(null)}
         />
       )}
+
+      {/* CEO快记浮动按钮 */}
+      <button
+        onClick={() => setShowQuickNote(true)}
+        className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl transition-all hover:scale-110 z-40"
+        title="CEO快记"
+      >
+        📝
+      </button>
+
+      {/* CEO快记组件 */}
+      <CEOQuickNote
+        isOpen={showQuickNote}
+        onClose={() => setShowQuickNote(false)}
+      />
     </ScenarioTemplate>
   )
 }
