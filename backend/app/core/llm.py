@@ -9,27 +9,51 @@ import os
 
 
 class LLMClient:
-    """LLM客户端封装"""
+    """LLM客户端封装（支持OpenAI/DeepSeek多模式切换）"""
 
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4"):
         """
         初始化LLM客户端
 
         Args:
-            api_key: OpenAI API Key
-            model: 模型名称
+            api_key: API Key（可选，会自动根据模式选择）
+            model: 模型名称（可选，会自动根据模式选择）
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4")
+        # 🔧 读取LLM模式（openai | deepseek）
+        self.llm_mode = os.getenv("LLM_MODE", "openai").lower()
+
+        # 根据模式选择配置
+        if self.llm_mode == "deepseek":
+            self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
+            self.model = model or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+            self.base_url = "https://api.deepseek.com/v1"
+            print(f"🌐 LLM模式: DeepSeek ({self.model}) - 国内直连")
+        else:  # openai（默认）
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            self.model = model or os.getenv("OPENAI_MODEL", "gpt-4")
+            self.base_url = None  # OpenAI默认地址
+            print(f"🌐 LLM模式: OpenAI ({self.model})")
 
         if not self.api_key:
-            print("⚠️  警告: OpenAI API Key未设置")
+            print(f"⚠️  警告: {self.llm_mode.upper()} API Key未设置")
 
-        # 同步客户端
-        self.client = OpenAI(api_key=self.api_key) if self.api_key else None
+        # 初始化同步客户端
+        if self.api_key:
+            client_kwargs = {"api_key": self.api_key}
+            if self.base_url:
+                client_kwargs["base_url"] = self.base_url
+            self.client = OpenAI(**client_kwargs)
+        else:
+            self.client = None
 
-        # 异步客户端
-        self.async_client = AsyncOpenAI(api_key=self.api_key) if self.api_key else None
+        # 初始化异步客户端
+        if self.api_key:
+            async_kwargs = {"api_key": self.api_key}
+            if self.base_url:
+                async_kwargs["base_url"] = self.base_url
+            self.async_client = AsyncOpenAI(**async_kwargs)
+        else:
+            self.async_client = None
 
     def chat_completion(
         self,
