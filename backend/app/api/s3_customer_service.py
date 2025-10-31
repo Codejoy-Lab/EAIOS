@@ -66,20 +66,21 @@ async def chat_stream(req: ChatRequest):
     kb_hits = kb.search(req.message, top_k=3)
 
     # 读取最近3条客户要点（customer_service 域）
-    recent = app_state.memory_manager.search_memories(
-        query=req.customer_id,
-        memory_type=None,
-        enabled_only=True,
-        user_id="system",
-        limit=10
-    )
-    # 仅保留客服域：通过metadata.domain判断（兼容无字段的老数据）
-    recent_points = []
-    for m in recent:
-        md = m.metadata or {}
-        if md.get("domain") == "customer_service" and md.get("scope", {}).get("customerId") == req.customer_id:
-            recent_points.append(m.content)
-    recent_points = recent_points[:3]
+    try:
+        recent = app_state.memory_manager.search_memories(
+            query=req.customer_id,
+            memory_type=None,
+            enabled_only=True,
+            user_id="system",
+            level="scenario",              # 🔑 只读场景级记忆
+            domain="customer_service",     # 🔑 只读客服域
+            scope={"customerId": req.customer_id},  # 🔑 按客户ID过滤
+            limit=3
+        )
+        recent_points = [m.content for m in recent]
+    except Exception as e:
+        print(f"⚠️ S3读取客户历史要点失败: {e}")
+        recent_points = []
 
     system_prompt = _s3_system_prompt(kb_hits, recent_points)
 
