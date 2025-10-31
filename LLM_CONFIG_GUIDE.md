@@ -2,13 +2,24 @@
 
 ## 📋 快速切换LLM模式
 
-### 方式1：使用OpenAI（需梯子）
+### 方式1：自动降级模式（推荐）⭐
+```env
+# backend/.env
+LLM_MODE=auto
+```
+**智能降级策略**：
+- ✅ 优先使用 OpenAI GPT-4（最佳效果）
+- ✅ 如果 OpenAI 超时/失败，自动切换到 DeepSeek
+- ✅ 无缝切换，用户无感知
+- ✅ 适合展会演示（有梯子用GPT，没梯子自动切换）
+
+### 方式2：仅使用OpenAI（需梯子）
 ```env
 # backend/.env
 LLM_MODE=openai
 ```
 
-### 方式2：使用DeepSeek（国内直连）
+### 方式3：仅使用DeepSeek（国内直连）
 ```env
 # backend/.env
 LLM_MODE=deepseek
@@ -72,27 +83,36 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## 🎯 使用场景建议
 
-### 场景1：开发调试（建议DeepSeek）
+### 场景1：展会演示（强烈推荐）⭐
 ```env
-LLM_MODE=deepseek
+LLM_MODE=auto
 ```
-- ✅ 国内直连，稳定快速
-- ✅ 价格便宜，随便用
-- ✅ 团队成员无需配置梯子
+- ✅ 最保险的方案
+- ✅ 有梯子时用 GPT-4（最佳效果）
+- ✅ 没梯子时自动切换 DeepSeek（兜底）
+- ✅ 无需担心网络问题
 
-### 场景2：展会演示（有梯子）
+### 场景2：开发调试（团队协作）
+```env
+LLM_MODE=auto
+```
+- ✅ 有梯子的开发者用 GPT-4
+- ✅ 没梯子的开发者自动用 DeepSeek
+- ✅ 团队成员无需统一配置
+
+### 场景3：仅使用 OpenAI（确定有梯子）
 ```env
 LLM_MODE=openai
 ```
 - ✅ 最佳效果
 - ⚠️ 需要确认现场有梯子
 
-### 场景3：展会演示（没梯子/不确定）
+### 场景4：仅使用 DeepSeek（节省成本）
 ```env
 LLM_MODE=deepseek
 ```
-- ✅ 保险方案，100%能用
-- ✅ 效果也很好
+- ✅ 国内直连，稳定快速
+- ✅ 价格便宜（1元/百万tokens）
 
 ---
 
