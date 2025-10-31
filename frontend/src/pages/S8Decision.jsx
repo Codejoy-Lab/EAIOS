@@ -4,6 +4,7 @@ import ScenarioTemplate from '../components/ScenarioTemplate'
 import ChatMessage from '../components/ChatMessage'
 import AgentDetailModal from '../components/AgentDetailModal'
 import CEOQuickNote from '../components/CEOQuickNote'
+import BusinessItemsBoard from '../components/BusinessItemsBoard'
 
 // Agent状态卡片组件（可点击）
 const AgentCard = ({ name, icon, status, message, output, onClick }) => {
@@ -90,6 +91,9 @@ const S8Decision = () => {
 
   // CEO快记面板
   const [showQuickNote, setShowQuickNote] = useState(false)
+
+  // 决策军师tab切换（对话 / 业务事项）
+  const [decisionTab, setDecisionTab] = useState('chat') // 'chat' | 'items'
 
   // WebSocket
   const ws = useRef(null)
