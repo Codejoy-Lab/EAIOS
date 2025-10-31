@@ -66,21 +66,23 @@ async def chat_stream(req: ChatRequest):
     kb_hits = kb.search(req.message, top_k=3)
 
     # 读取最近3条客户要点（customer_service 域）
-    try:
-        recent = app_state.memory_manager.search_memories(
-            query=req.customer_id,
-            memory_type=None,
-            enabled_only=True,
-            user_id="system",
-            level="scenario",              # 🔑 只读场景级记忆
-            domain="customer_service",     # 🔑 只读客服域
-            scope={"customerId": req.customer_id},  # 🔑 按客户ID过滤
-            limit=3
-        )
-        recent_points = [m.content for m in recent]
-    except Exception as e:
-        print(f"⚠️ S3读取客户历史要点失败: {e}")
-        recent_points = []
+    # 🔧 临时禁用Mem0搜索，避免超时阻塞
+    print(f"📝 S3处理客户 {req.customer_id} 的消息: {req.message[:50]}")
+    recent_points = []
+
+    # TODO: 等Mem0稳定后再启用
+    # try:
+    #     recent = app_state.memory_manager.search_memories(
+    #         query=req.customer_id,
+    #         level="scenario",
+    #         domain="customer_service",
+    #         scope={"customerId": req.customer_id},
+    #         limit=3
+    #     )
+    #     recent_points = [m.content for m in recent]
+    # except Exception as e:
+    #     print(f"⚠️ S3读取客户历史要点失败: {e}")
+    #     recent_points = []
 
     system_prompt = _s3_system_prompt(kb_hits, recent_points)
 
@@ -103,22 +105,25 @@ async def chat_stream(req: ChatRequest):
 
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
-            # 简单规则：若回复中包含进度/产品/投诉等关键词，当作关键回合，沉淀一条要点
-            topic = "产品" if "产品" in req.message else ("投诉" if "投诉" in req.message else ("进度" if "进度" in req.message else "咨询"))
-            key_info = req.message[:40]
-            point = _format_point(datetime.now(), topic, key_info, resolved=("已解决" in full_reply))
-            app_state.memory_manager.add_memory(
-                content=point,
-                memory_type="interaction",
-                source="s3_customer_service",
-                metadata={
-                    "level": "scenario",             # 🔑 场景级记忆
-                    "domain": "customer_service",    # 🔑 客服域
-                    "scope": {"customerId": req.customer_id},
-                    "category": "customer_point"
-                },
-                user_id="system"
-            )
+            # 🔧 临时禁用记忆保存，避免超时
+            print(f"✅ S3对话完成，回复长度: {len(full_reply)}")
+
+            # TODO: 等Mem0稳定后再启用
+            # topic = "产品" if "产品" in req.message else ("投诉" if "投诉" in req.message else ("进度" if "进度" in req.message else "咨询"))
+            # key_info = req.message[:40]
+            # point = _format_point(datetime.now(), topic, key_info, resolved=("已解决" in full_reply))
+            # app_state.memory_manager.add_memory(
+            #     content=point,
+            #     memory_type="interaction",
+            #     source="s3_customer_service",
+            #     metadata={
+            #         "level": "scenario",
+            #         "domain": "customer_service",
+            #         "scope": {"customerId": req.customer_id},
+            #         "category": "customer_point"
+            #     },
+            #     user_id="system"
+            # )
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
 
@@ -143,27 +148,32 @@ async def kb_list(category: Optional[str] = None):
 
 @router.get("/customer/points")
 async def get_customer_points(customer_id: str, limit: int = 3):
-    app_state = get_app_state()
-    if not app_state.memory_manager:
-        raise HTTPException(status_code=500, detail="系统未初始化")
+    """获取客户历史要点"""
+    # 🔧 临时返回空列表，避免Mem0超时
+    print(f"📊 获取客户 {customer_id} 的历史要点")
+    return {"success": True, "points": []}
 
-    try:
-        results = app_state.memory_manager.search_memories(
-            query=customer_id,
-            memory_type=None,
-            level="scenario",              # 🔑 只读场景级记忆
-            domain="customer_service",     # 🔑 只读客服域
-            scope={"customerId": customer_id},  # 🔑 按客户ID过滤
-            limit=limit,
-            enabled_only=True,
-            user_id="system"
-        )
-        points = [{"id": m.id, "content": m.content, "created_at": m.created_at} for m in results]
-        points = sorted(points, key=lambda x: x["created_at"], reverse=True)
-        return {"success": True, "points": points}
-    except Exception as e:
-        print(f"⚠️ 获取客户历史要点失败: {e}")
-        return {"success": True, "points": []}
+    # TODO: 等Mem0稳定后再启用
+    # app_state = get_app_state()
+    # if not app_state.memory_manager:
+    #     raise HTTPException(status_code=500, detail="系统未初始化")
+    #
+    # try:
+    #     results = app_state.memory_manager.search_memories(
+    #         query=customer_id,
+    #         level="scenario",
+    #         domain="customer_service",
+    #         scope={"customerId": customer_id},
+    #         limit=limit,
+    #         enabled_only=True,
+    #         user_id="system"
+    #     )
+    #     points = [{"id": m.id, "content": m.content, "created_at": m.created_at} for m in results]
+    #     points = sorted(points, key=lambda x: x["created_at"], reverse=True)
+    #     return {"success": True, "points": points}
+    # except Exception as e:
+    #     print(f"⚠️ 获取客户历史要点失败: {e}")
+    #     return {"success": True, "points": []}
 
 
 @router.delete("/customer/{customer_id}/clear")
