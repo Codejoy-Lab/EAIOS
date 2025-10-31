@@ -10,7 +10,7 @@ import os
 from dotenv import load_dotenv
 
 # 导入API路由
-from app.api import memory, scenarios, health, s8_decision, s3_customer_service, ceo_notes, business_items
+from app.api import memory, scenarios, health, s8_decision, s3_customer_service, ceo_notes, business_items, s6_analytics
 
 # 导入核心模块
 from app.core.memory import MemoryManager
@@ -109,6 +109,7 @@ app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
 app.include_router(scenarios.router, prefix="/api/scenarios", tags=["Scenarios"])
 app.include_router(s8_decision.router, prefix="/api/s8", tags=["S8-Decision"])
 app.include_router(s3_customer_service.router, prefix="/api/s3", tags=["S3-CustomerService"])
+app.include_router(s6_analytics.router, prefix="/api/s6", tags=["S6-Analytics"])
 app.include_router(ceo_notes.router, prefix="/api/ceo-notes", tags=["CEO-Notes"])
 app.include_router(business_items.router, prefix="/api/business-items", tags=["Business-Items"])
 

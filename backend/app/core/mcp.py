@@ -270,6 +270,67 @@ class DataAnalyticsTool(MCPTool):
         }
 
 
+class S6AnalyticsReportTool(MCPTool):
+    """S6数据分析报告工具"""
+
+    def __init__(self):
+        super().__init__(
+            name="get_s6_report",
+            description="获取S6数据分析中台的综合分析报告，包含各场景关键指标、异常告警、跨场景洞察"
+        )
+
+    async def execute(self, scenario: Optional[str] = None) -> Dict:
+        """
+        获取S6分析报告
+
+        Args:
+            scenario: 场景名称（如 s3_customer_service），留空则获取全局报告
+
+        Returns:
+            分析报告数据
+        """
+        try:
+            from app.core.data_analyzer import get_data_analyzer
+
+            analyzer = get_data_analyzer()
+
+            if scenario:
+                # 获取单个场景摘要
+                result = analyzer.get_scenario_summary(scenario)
+            else:
+                # 获取完整报告
+                result = analyzer.get_latest_report()
+
+            return {
+                "data": result,
+                "source": {
+                    "system": "S6数据分析中台",
+                    "description": "汇总各场景metrics，进行智能分析",
+                    "timestamp": result.get("generated_at"),
+                    "responsible": "数据分析团队"
+                }
+            }
+
+        except Exception as e:
+            return {
+                "data": None,
+                "error": str(e),
+                "source": {"system": "S6数据分析中台"}
+            }
+
+    def get_schema(self) -> Dict:
+        return {
+            "type": "object",
+            "properties": {
+                "scenario": {
+                    "type": "string",
+                    "description": "场景名称（可选），如 s3_customer_service、s1_marketing等。留空则获取全局报告",
+                    "enum": ["s3_customer_service", "s1_marketing", "s2_sales", "s4_content", "s5_process", "s7_compliance", None]
+                }
+            }
+        }
+
+
 class MCPToolRegistry:
     """MCP工具注册表"""
 
@@ -311,4 +372,5 @@ def init_default_tools():
     registry.register(CRMTool())
     registry.register(DocumentTool())
     registry.register(DataAnalyticsTool())
-    print("✅ MCP工具初始化完成")
+    registry.register(S6AnalyticsReportTool())
+    print("✅ MCP工具初始化完成（含S6数据分析报告）")

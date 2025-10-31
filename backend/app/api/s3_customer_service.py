@@ -12,9 +12,11 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 import json
 from datetime import datetime
+import random
 
 from app.core.state import get_app_state
 from app.core.customer_service_kb import get_cs_kb
+from app.core.data_analyzer import get_data_analyzer
 
 
 router = APIRouter()
@@ -50,6 +52,31 @@ def _s3_system_prompt(kb_snippets: List[Dict], recent_points: List[str]) -> str:
 def _format_point(now: datetime, topic: str, key_info: str, resolved: bool) -> str:
     flag = "是" if resolved else "转人工/未结"
     return f"{now.strftime('%Y-%m-%d %H:%M')}｜{topic}｜{key_info}｜{flag}"
+
+
+def _report_metrics_to_s6():
+    """
+    上报S3客服metrics到S6数据分析
+
+    模拟计算当前客服指标
+    实际应用中应该从数据库或缓存中获取真实数据
+    """
+    try:
+        analyzer = get_data_analyzer()
+
+        # 模拟metrics（实际应该从数据库统计）
+        metrics = {
+            "total_consultations": random.randint(100, 200),
+            "satisfaction_rate": round(random.uniform(0.75, 0.95), 2),
+            "complaint_rate": round(random.uniform(0.02, 0.15), 2),
+            "avg_response_time": round(random.uniform(30, 120), 1)
+        }
+
+        analyzer.collect_metrics("s3_customer_service", metrics)
+        print(f"✅ S3上报metrics到S6: {metrics}")
+
+    except Exception as e:
+        print(f"⚠️  S3上报metrics失败: {e}")
 
 
 @router.post("/chat/stream")
@@ -94,37 +121,43 @@ async def chat_stream(req: ChatRequest):
     async def generate_stream():
         full_reply = ""
         try:
+            print(f"🚀 开始调用LLM，消息数: {len(messages)}")
+
+            chunk_count = 0
             async for chunk in app_state.llm_client.async_chat_completion_stream(messages):
+                chunk_count += 1
                 t = chunk.get("type")
+
+                if chunk_count == 1:
+                    print(f"✅ 收到第一个chunk: type={t}")
+
                 if t == "content":
                     c = chunk.get("content", "")
                     full_reply += c
                     yield f"data: {json.dumps({'type': 'content', 'content': c}, ensure_ascii=False)}\n\n"
                 elif t == "done":
+                    print(f"✅ LLM生成完成: chunk_count={chunk_count}, reply_len={len(full_reply)}")
+                    # 对话结束，上报metrics到S6
+                    _report_metrics_to_s6()
                     break
+                elif t == "error":
+                    error_msg = chunk.get("error", "未知错误")
+                    print(f"❌ LLM错误: {error_msg}")
+                    yield f"data: {json.dumps({'type': 'error', 'error': error_msg}, ensure_ascii=False)}\n\n"
+                    return
+
+            if chunk_count == 0:
+                print(f"⚠️ 警告：LLM没有返回任何chunk")
+                yield f"data: {json.dumps({'type': 'error', 'error': 'LLM没有返回内容'}, ensure_ascii=False)}\n\n"
+                return
 
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-
-            # 🔧 临时禁用记忆保存，避免超时
             print(f"✅ S3对话完成，回复长度: {len(full_reply)}")
 
-            # TODO: 等Mem0稳定后再启用
-            # topic = "产品" if "产品" in req.message else ("投诉" if "投诉" in req.message else ("进度" if "进度" in req.message else "咨询"))
-            # key_info = req.message[:40]
-            # point = _format_point(datetime.now(), topic, key_info, resolved=("已解决" in full_reply))
-            # app_state.memory_manager.add_memory(
-            #     content=point,
-            #     memory_type="interaction",
-            #     source="s3_customer_service",
-            #     metadata={
-            #         "level": "scenario",
-            #         "domain": "customer_service",
-            #         "scope": {"customerId": req.customer_id},
-            #         "category": "customer_point"
-            #     },
-            #     user_id="system"
-            # )
         except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"❌ S3对话异常: {error_detail}")
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(generate_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"})
