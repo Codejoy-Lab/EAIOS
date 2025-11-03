@@ -84,10 +84,28 @@ const S8Decision = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [hasAutoStarted, setHasAutoStarted] = useState(false)
 
+  // 是否已开始演示
+  const [started, setStarted] = useState(false)
+
   // WebSocket
   const ws = useRef(null)
   const decisionChatRef = useRef(null)
   const meetingChatRef = useRef(null)
+
+  // 从本地存储恢复消息（仅首次）
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (restoredRef.current) return
+    restoredRef.current = true
+    try {
+      const savedDecision = localStorage.getItem('s8_decision_messages')
+      const savedMeeting = localStorage.getItem('s8_meeting_messages')
+      if (savedDecision) setDecisionMessages(JSON.parse(savedDecision))
+      if (savedMeeting) setMeetingMessages(JSON.parse(savedMeeting))
+    } catch (e) {
+      // ignore
+    }
+  }, [])
 
   // 自动滚动到底部
   const scrollToBottom = (ref) => {
@@ -102,6 +120,19 @@ const S8Decision = () => {
 
   useEffect(() => {
     scrollToBottom(meetingChatRef)
+  }, [meetingMessages])
+
+  // 持久化到本地存储
+  useEffect(() => {
+    try {
+      localStorage.setItem('s8_decision_messages', JSON.stringify(decisionMessages))
+    } catch (e) {}
+  }, [decisionMessages])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('s8_meeting_messages', JSON.stringify(meetingMessages))
+    } catch (e) {}
   }, [meetingMessages])
 
   // 初始化WebSocket
@@ -156,20 +187,12 @@ const S8Decision = () => {
     }
   }, [])
 
-  // 自动启动工作流（防止React StrictMode重复执行）
-  const workflowStartedRef = useRef(false)
-  useEffect(() => {
-    if (!workflowStartedRef.current) {
-      workflowStartedRef.current = true
-      // 延迟500ms后自动开始
-      setTimeout(() => {
-        startWorkflow()
-      }, 500)
-    }
-  }, [])
+  // 取消自动启动，改为手动点击开始
 
   // 开始工作流
   const startWorkflow = async () => {
+    if (started || isGenerating) return
+    setStarted(true)
     // Decision Agent发送欢迎消息
     addDecisionMessage('system', '决策军师 S8 已上线')
 
@@ -350,7 +373,6 @@ const S8Decision = () => {
                   }
                   return newMessages
                 })
-              }
               } else if (data.type === 'tool_call_start') {
                 // 工具调用开始
                 console.log('🔧 工具调用开始:', data.tool_calls)
@@ -584,13 +606,38 @@ const S8Decision = () => {
                 <h3 className="font-semibold text-gray-200 text-sm">S8 决策军师</h3>
                 <p className="text-xs text-gray-500">自动分析经营数据，生成决策建议</p>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (decisionMessages.length === 0 && meetingMessages.length === 0) return
+                    setDecisionMessages([])
+                    setMeetingMessages([])
+                    try {
+                      localStorage.removeItem('s8_decision_messages')
+                      localStorage.removeItem('s8_meeting_messages')
+                    } catch (e) {}
+                    setStarted(false)
+                  }}
+                  className="px-3 py-1.5 bg-slate-700/60 hover:bg-slate-600/70 text-gray-200 text-xs font-medium rounded-md transition-all border border-slate-600/50"
+                >
+                  清除
+                </button>
+                {!started && (
+                  <button
+                    onClick={startWorkflow}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-all"
+                  >
+                    开始演示
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* 消息列表 */}
             <div ref={decisionChatRef} className="flex-1 overflow-y-auto">
               {decisionMessages.length === 0 && (
                 <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-                  正在初始化...
+                  {!started ? '点击右上角「开始演示」以启动流程' : '正在初始化...'}
                 </div>
               )}
               {decisionMessages.map((msg, idx) => (

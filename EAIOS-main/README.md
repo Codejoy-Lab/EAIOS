@@ -155,6 +155,104 @@ npm run dev
 5. 在关键节点进行人工确认
 6. 查看输出结果和来源证明
 
+### S3 智能客服场景（完整实现）
+
+**场景定位**：展示"认人+记历史+主动推荐"的智能客服能力
+
+#### 核心功能
+
+1. **多客户账号切换**
+   - 三个演示客户（张伟/李娜/王强），可自由切换
+   - 每个客户的聊天记录独立保存（localStorage持久化）
+   - 切换客户时自动加载对应聊天历史和历史要点
+
+2. **企业大脑记忆系统**
+   - **记忆域隔离**：`customer_service` 域，按 `customerId` 严格隔离
+   - **AI认人**：回答前自动检索该客户的历史要点（最近3条）
+   - **历史要点展示**：左侧卡片显示该客户的互动记录
+   - **单条删除**：支持删除指定历史要点
+
+3. **共享知识库**
+   - 右侧上方显示已有知识库条目
+   - 下方支持文本输入和文件拖拽上传
+   - **自动分类**：根据内容关键词自动分类（企业口径/产品规格/售后政策/新品）
+   - **自动检索**：AI回答时自动检索知识库，命中时标注来源
+   - **新品推送**：检测到"新品"关键词时，自动向所有客户推送消息
+
+4. **清除当前客户数据**
+   - 点击"清除当前客户数据"按钮
+   - 清除前端聊天记录 + 后端企业大脑中该客户的所有记忆
+   - 相当于初始化该账号
+
+5. **Dashboard 实时数据看板**
+   - 已处理咨询数、进度查询成功数、产品信息解答数
+   - 投诉受理数、自动推送条数、已转人工数
+   - **新增历史要点数**（高亮）、**命中历史要点数**（高亮）
+
+6. **底部三分对比**
+   - 展示"无智能客服" vs "普通智能客服" vs "我们的智能客服"
+   - 用对话示例凸显价值差异
+
+#### 使用流程
+
+1. **基础对话**
+   ```
+   用户："你好"
+   AI：基于知识库和历史要点的智能回复
+   ```
+
+2. **添加知识库**
+   ```
+   输入："新品IPHONE18上市，首发价8999元"
+   点击"添加到知识库"
+   → 自动分类为"新品"
+   → 自动向三个客户推送消息
+   → 知识库列表立即更新
+   ```
+
+3. **切换客户验证记忆隔离**
+   ```
+   张伟账号：咨询产品A
+   切换到李娜：咨询产品B
+   再切回张伟：AI能回忆起之前咨询过产品A
+   ```
+
+4. **清除客户数据**
+   ```
+   选择张伟 → 点击"清除当前客户数据"
+   → 确认后该客户的所有记忆和聊天记录被清空
+   → 相当于新客户首次对话
+   ```
+
+#### 技术实现
+
+- **后端接口**：
+  - `POST /api/s3/chat/stream` - 流式聊天（SSE）
+  - `GET /api/s3/customer/points` - 获取客户历史要点
+  - `POST /api/s3/kb/add` - 添加知识库条目
+  - `GET /api/s3/kb/list` - 获取知识库列表
+  - `DELETE /api/s3/customer/{customer_id}/clear` - 清除客户数据
+
+- **记忆域设计**：
+  ```python
+  metadata = {
+      "domain": "customer_service",  # 仅S3可读写
+      "scope": {"customerId": "U001"},  # 客户隔离
+      "category": "customer_point"
+  }
+  ```
+
+- **知识库存储**：本地JSON文件 `backend/data/cs_kb.json`
+- **聊天持久化**：前端 `localStorage.s3_chat_messages`
+
+#### 演示价值点
+
+✅ **认人**：切换客户时，AI能准确识别并调取对应历史  
+✅ **记历史**：每次关键对话自动沉淀为历史要点  
+✅ **主动推荐**：检测新品自动推送，无需人工干预  
+✅ **知识管理**：统一口径，所有客服都能查询  
+✅ **数据可视化**：实时统计凸显业务价值  
+
 ### 记忆与场景联动验证
 
 **验证步骤**：
@@ -166,6 +264,161 @@ npm run dev
 6. 取消勾选该记忆
 7. 重新开始对话
 8. 观察：Agent直接回答（不受该记忆约束）
+
+### S8 决策军师场景（完整实现）
+
+**场景定位**：展示"企业大脑+主动式决策+多轮工具调用"的AI决策能力
+
+#### 核心功能
+
+1. **多轮MCP工具调用**
+   - 支持最多10轮递归工具调用
+   - 自动分解复杂任务为多个子任务（如：一次性安排3个任务）
+   - 实时显示工具执行状态和结果
+
+2. **流式对话与工具状态**
+   - SSE（Server-Sent Events）流式输出，实时反馈
+   - 工具调用状态追踪：calling → success/error
+   - 支持三种工具事件：
+     - `tool_call_start`：工具开始调用
+     - `tool_result`：工具执行成功
+     - `tool_error`：工具执行失败
+
+3. **智能记忆管理**
+   - LLM自动判断对话是否值得保存到长期记忆
+   - 区分三类记忆：
+     - **工作偏好**（work_preference）：决策风格、管理风格、汇报偏好
+     - **公司背景**（company_background）：业务类型、团队规模、市场定位
+     - **业务决策**（business_decision）：战略决策、行动计划
+   - 仅记录企业经营相关信息，不记录CEO个人隐私
+
+4. **会议助手联动**
+   - 左侧：决策军师对话窗口（CEO视角的经营简报）
+   - 右侧：会议助手对话窗口（会议纪要提取）
+   - WebSocket实时通信，会议助手更新触发决策军师刷新
+
+5. **localStorage持久化**
+   - 聊天记录自动保存到浏览器本地存储
+   - 页面刷新后自动恢复对话历史
+   - 支持一键清除所有记录
+
+6. **手动启动控制**
+   - 点击"开始演示"按钮启动流程
+   - 避免自动启动导致的重复执行（React StrictMode兼容）
+
+#### 使用流程
+
+1. **启动演示**
+   ```
+   点击右上角"开始演示"按钮
+   → 系统发送欢迎消息
+   → 会议助手发送初始指引
+   → 可开始对话或使用工具
+   ```
+
+2. **多轮工具调用示例**
+   ```
+   用户问："请帮我安排三个任务：优化营销策略、降低获客成本、提升产品质量"
+
+   → 第1轮LLM调用：
+      - AI返回tool_call: anpaitask("优化营销策略")
+      - 前端显示"调用中..."
+      - 后端执行工具并返回结果
+      - 前端更新为"成功 ✓"
+
+   → 第2轮LLM调用：
+      - AI继续调用: anpaitask("降低获客成本")
+      - 执行并返回结果
+
+   → 第3轮LLM调用：
+      - AI继续调用: anpaitask("提升产品质量")
+      - 执行并返回结果
+
+   → 第4轮LLM调用：
+      - AI不再调用工具，生成总结文本
+      - 前端显示："已为您安排三个任务，分别是..."
+   ```
+
+3. **与会议助手联动**
+   ```
+   在右侧会议助手窗口输入会议纪要：
+   "今天讨论了Q4营销策略，决定增加社交媒体投放预算20%"
+
+   → 会议助手提取关键信息
+   → 触发REPORT_UPDATED事件（通过WebSocket）
+   → 左侧决策军师收到通知
+   → 自动更新经营分析和建议
+   ```
+
+4. **清除对话历史**
+   ```
+   点击右上角"清除"按钮
+   → 清空左右两侧的所有聊天记录
+   → 清除localStorage中的持久化数据
+   → 重置"开始演示"状态
+   ```
+
+#### 技术实现
+
+- **后端接口**：
+  - `POST /api/s8/chat/stream` - 流式对话（SSE，支持多轮工具调用）
+  - `WebSocket /api/s8/ws` - 实时状态推送
+
+- **多轮工具调用逻辑**（`backend/app/api/s8_decision.py:386-484`）：
+  ```python
+  # 递归循环：持续处理工具调用，直到LLM不再需要调用工具
+  max_iterations = 10  # 防止无限循环
+  iteration = 0
+
+  while iteration < max_iterations:
+      iteration += 1
+      has_tool_calls = False
+
+      # 流式调用LLM（带工具）
+      async for chunk in llm_client.async_chat_completion_stream(messages, tools=tools):
+          if chunk_type == "tool_calls":
+              has_tool_calls = True
+              # 执行工具并将结果添加到消息历史
+              # 继续下一轮循环
+          elif chunk_type == "content":
+              # 输出文本内容
+
+      # 如果这一轮没有工具调用，说明任务完成，退出循环
+      if not has_tool_calls:
+          break
+  ```
+
+- **前端状态管理**：
+  - localStorage自动持久化（`s8_decision_messages`, `s8_meeting_messages`）
+  - 手动启动控制（`started`状态）
+  - 工具调用状态实时更新（SSE事件监听）
+
+- **智能记忆保存**（异步，不阻塞流式输出）：
+  ```python
+  # LLM判断对话价值
+  should_save, summary, memory_type = await _should_save_to_memory_llm(
+      user_message, ai_reply, llm_client
+  )
+
+  # 仅保存有价值的企业信息
+  if should_save:
+      app_state.mem0.add(
+          summary,
+          metadata={
+              "domain": "s8_decision",
+              "type": memory_type,  # work_preference/company_background/business_decision
+              "session_id": session_id
+          }
+      )
+  ```
+
+#### 演示价值点
+
+✅ **多轮工具调用**：一次请求自动执行多个子任务，无需人工干预
+✅ **实时状态反馈**：流式输出+工具状态追踪，用户体验流畅
+✅ **智能记忆管理**：自动识别并保存重要的企业信息
+✅ **双Agent联动**：决策军师+会议助手协同工作
+✅ **数据持久化**：刷新页面不丢失对话历史
 
 ---
 
@@ -241,6 +494,28 @@ python -c "import os,sys,json; sys.path.append('backend'); from app.core.mcp_cli
 如需扩展工具（推荐在外部 MCP Server 实现）：
 - 在外部服务新增/更新工具与 schema
 - 重启/热更新后端将自动读取最新工具列表
+
+#### 本地 MCP（process_http 模式，推荐）
+
+当你的 MCP 只能“本地启动”为一个进程（例如通过 `mcpServers` 配置拉起命令），可使用本项目的本地进程兼容模式：
+
+1) 在 `.env` 中配置：
+```env
+MCP_MODE=process_http
+# 启动 MCP 的命令与参数（args 支持 JSON 数组或空格分隔字符串）
+MCP_PROCESS_COMMAND=cmd
+MCP_PROCESS_ARGS=["/c","npx","-y","@smithery/cli@latest","run","@Deploya-labs/mcp-resend","--key","<your_key>","--profile","<your_profile>"]
+
+# 本地 MCP 进程启动后提供的 HTTP JSON-RPC 端点（tools/list, tools/call）
+MCP_LOCAL_URL=http://127.0.0.1:8787/mcp
+
+# 可选：等待 MCP 就绪的超时秒数（默认 30）
+MCP_START_TIMEOUT=30
+```
+
+2) 启动后端时，系统会先拉起本地 MCP 进程，再用 `MCP_LOCAL_URL` 初始化 MCP 客户端。
+
+3) 验证：在后端日志中打印“可用工具: [...]”，或使用上文的“验证外部工具”脚本。
 
 ### 4. WebSocket实时通信
 

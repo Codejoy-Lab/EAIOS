@@ -136,7 +136,10 @@ class MemoryManager:
         memory_type: Optional[str] = None,
         enabled_only: bool = True,
         user_id: str = "system",
-        limit: int = 5
+        limit: int = 5,
+        domain: Optional[str] = None,
+        level: Optional[str] = None,
+        scope: Optional[Dict] = None
     ) -> List[MemoryItem]:
         """
         搜索相关记忆（语义搜索）
@@ -147,6 +150,9 @@ class MemoryManager:
             enabled_only: 只返回已启用的记忆
             user_id: 用户ID
             limit: 返回数量
+            domain: 记忆域过滤（如：customer_service, enterprise）
+            level: 记忆层级过滤（enterprise/scenario）
+            scope: 范围过滤（如：{"customerId": "U001"}）
 
         Returns:
             记忆列表
@@ -155,12 +161,17 @@ class MemoryManager:
             return []
 
         try:
-            # 搜索记忆
-            results = self.memory.search(
-                query=query,
-                user_id=user_id,
-                limit=limit
-            )
+            # 搜索记忆（添加异常捕获）
+            import asyncio
+            try:
+                results = self.memory.search(
+                    query=query,
+                    user_id=user_id,
+                    limit=limit
+                )
+            except Exception as search_err:
+                print(f"⚠️  搜索记忆时出错: {search_err}, 返回空结果")
+                return []
 
             # 解析结果 - Mem0 可能返回列表或字典
             memories = []
@@ -175,12 +186,35 @@ class MemoryManager:
 
             for result in result_list:
                 memory_item = MemoryItem.from_mem0_result(result)
+                md = memory_item.metadata or {}
 
-                # 过滤
+                # 过滤：memory_type
                 if memory_type and memory_item.memory_type != memory_type:
                     continue
+
+                # 过滤：enabled
                 if enabled_only and not memory_item.enabled:
                     continue
+
+                # 过滤：level（企业级/场景级）
+                if level and md.get("level") != level:
+                    continue
+
+                # 过滤：domain（记忆域）
+                if domain and md.get("domain") != domain:
+                    continue
+
+                # 过滤：scope（范围）
+                if scope:
+                    item_scope = md.get("scope", {})
+                    # 检查所有scope条件是否匹配
+                    match = True
+                    for key, value in scope.items():
+                        if item_scope.get(key) != value:
+                            match = False
+                            break
+                    if not match:
+                        continue
 
                 memories.append(memory_item)
 
@@ -193,7 +227,9 @@ class MemoryManager:
     def get_all_memories(
         self,
         user_id: str = "system",
-        memory_type: Optional[str] = None
+        memory_type: Optional[str] = None,
+        domain: Optional[str] = None,
+        level: Optional[str] = None
     ) -> List[MemoryItem]:
         """
         获取所有记忆
@@ -201,6 +237,8 @@ class MemoryManager:
         Args:
             user_id: 用户ID
             memory_type: 记忆类型过滤
+            domain: 记忆域过滤
+            level: 记忆层级过滤
 
         Returns:
             记忆列表
@@ -225,9 +263,18 @@ class MemoryManager:
 
             for result in result_list:
                 memory_item = MemoryItem.from_mem0_result(result)
+                md = memory_item.metadata or {}
 
-                # 过滤
+                # 过滤：memory_type
                 if memory_type and memory_item.memory_type != memory_type:
+                    continue
+
+                # 过滤：level
+                if level and md.get("level") != level:
+                    continue
+
+                # 过滤：domain
+                if domain and md.get("domain") != domain:
                     continue
 
                 memories.append(memory_item)
@@ -315,7 +362,9 @@ class MemoryManager:
         query: str,
         memory_type: Optional[str] = None,
         user_id: str = "system",
-        max_memories: int = 5
+        max_memories: int = 5,
+        domain: Optional[str] = None,
+        level: Optional[str] = None
     ) -> str:
         """
         为LLM构建记忆上下文
@@ -325,6 +374,8 @@ class MemoryManager:
             memory_type: 记忆类型
             user_id: 用户ID
             max_memories: 最多包含的记忆数量
+            domain: 记忆域过滤
+            level: 记忆层级过滤
 
         Returns:
             格式化的记忆上下文字符串
@@ -334,7 +385,9 @@ class MemoryManager:
             memory_type=memory_type,
             enabled_only=True,
             user_id=user_id,
-            limit=max_memories
+            limit=max_memories,
+            domain=domain,
+            level=level
         )
 
         if not memories:

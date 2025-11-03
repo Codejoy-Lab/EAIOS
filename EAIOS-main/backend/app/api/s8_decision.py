@@ -267,14 +267,16 @@ async def chat_with_s8_stream(request: ChatRequest):
         full_reply = ""  # 收集完整回复用于后续记忆判断
 
         try:
-            print("🔍 搜索相关记忆...")
-            # 搜索相关记忆（使用 system 确保能搜到所有记忆）
+            print("🔍 搜索相关企业级记忆...")
+            # 搜索企业级记忆（使用 system 确保能搜到所有记忆）
             memories = app_state.memory_manager.search_memories(
                 query=user_message,
                 user_id="system",
+                level="enterprise",      # 🔑 只读企业级记忆
+                domain="enterprise",     # 🔑 只读企业域
                 limit=5
             )
-            print(f"✅ 找到 {len(memories)} 条相关记忆")
+            print(f"✅ 找到 {len(memories)} 条相关企业级记忆")
 
             # 构建上下文
             context = "\n".join([f"- {m.content}" for m in memories])
@@ -536,10 +538,12 @@ async def _save_memory_async(user_message: str, ai_reply: str, session_id: Optio
                 content=memory_text,
                 user_id=user_id,
                 metadata={
-                    "memory_type": memory_type,  # work_preference/company_background/business_decision/business_insight
+                    "level": "enterprise",       # 🔑 企业级记忆
+                    "domain": "enterprise",      # 🔑 企业域
+                    "category": memory_type,     # work_preference/company_background/business_decision/business_insight
                     "timestamp": str(datetime.now()),
                     "source": "s8_chat",
-                    "category": "business"  # 统一标记为业务相关
+                    "scope": {"sessionId": session_id}
                 }
             )
             print(f"✅ [后台] 记忆已保存: {memory_result}")
@@ -568,14 +572,16 @@ async def chat_with_s8(request: ChatRequest):
         raise HTTPException(status_code=400, detail="消息不能为空")
 
     try:
-        print("🔍 搜索相关记忆...")
-        # 搜索相关记忆（使用 system 确保能搜到所有记忆）
+        print("🔍 搜索相关企业级记忆...")
+        # 搜索企业级记忆（使用 system 确保能搜到所有记忆）
         memories = app_state.memory_manager.search_memories(
             query=user_message,
             user_id="system",
+            level="enterprise",      # 🔑 只读企业级记忆
+            domain="enterprise",     # 🔑 只读企业域
             limit=5
         )
-        print(f"✅ 找到 {len(memories)} 条相关记忆")
+        print(f"✅ 找到 {len(memories)} 条相关企业级记忆")
 
         # 构建上下文
         context = "\n".join([f"- {m.content}" for m in memories])
@@ -638,10 +644,12 @@ async def chat_with_s8(request: ChatRequest):
                     content=memory_text,
                     user_id=user_id,
                     metadata={
-                        "memory_type": memory_type,  # work_preference/company_background/business_decision/business_insight
+                        "level": "enterprise",       # 🔑 企业级记忆
+                        "domain": "enterprise",      # 🔑 企业域
+                        "category": memory_type,     # work_preference/company_background/business_decision/business_insight
                         "timestamp": str(datetime.now()),
                         "source": "s8_chat",
-                        "category": "business"  # 统一标记为业务相关
+                        "scope": {"sessionId": request.session_id}
                     }
                 )
                 print(f"✅ 记忆已保存: {memory_result}")
